@@ -1,0 +1,93 @@
+version: "3.7"
+x-author: Mohamad Taghizadeh <mtmohamad5@gmail.com>
+x-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "20m"
+    max-file: "10"
+
+services:
+  nginx:
+    container_name: app-nginx
+    depends_on:
+      - app-front
+      - app-back
+    networks:
+      - api_net
+    build:
+      context: ./nginx
+      dockerfile: DockerFile
+    volumes:
+      - ./nginx/nginx.conf.template:/etc/nginx/nginx.conf.template
+    environment:
+      APP_CONTAINER_NAME: ${APP_CONTAINER_NAME}
+      APP_PORT: ${APP_PORT}
+      API_CONTAINER_NAME: ${API_CONTAINER_NAME}
+      API_PORT: $API_PORT
+      NGINX_HTTP_PORT: ${NGINX_HTTP_PORT}
+      NGINX_HTTPS_PORT: ${NGINX_HTTPS_PORT}
+    ports:
+      - "${NGINX_HTTP_PORT}:80"
+    logging: *logging
+    command: >
+      /bin/sh -c "envsubst '$$API_CONTAINER_NAME,$$API_PORT,$$APP_CONTAINER_NAME,$$APP_PORT' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+      & nginx -g 'daemon off;'"
+
+  app-back:
+    container_name: ${API_CONTAINER_NAME}
+    networks:
+      - api_net
+      - db_net
+    build:
+      context: ./back
+      target: base
+      dockerfile: DockerFile
+    volumes:
+      - ./back/src:/var/www/app/src
+      - ./back/nodemon.json:/var/www/app/nodemon.json
+    environment:
+      API_HOST: ${API_HOST}
+      API_PORT: ${API_PORT}
+    ports:
+      - "${API_PORT}"
+    command: npm run dev
+    logging: *logging
+
+  app-front:
+    container_name: ${APP_CONTAINER_NAME}
+    networks:
+      - api_net
+    build:
+      context: ./front
+      target: base
+      dockerfile: DockerFile
+    volumes:
+      - ./front/:/var/www/app/
+    environment:
+      APP_PORT: ${APP_PORT}
+      APP_HOST: ${APP_HOST}
+    ports:
+      - "${APP_PORT}"
+    command: npm run dev
+    logging: *logging
+
+  app-db:
+    image: mongo:latest
+    container_name: ${DB_CONTAINER_NAME}
+    networks:
+      - db_net
+    environment:
+      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+      MONGODB_PORT: ${MONGODB_PORT}
+    ports:
+      - "${MONGODB_PORT}"
+    volumes:
+      - ./mongodb:/data/db
+
+networks:
+  api_net:
+    name: api_net
+  db_net:
+    name: db_net

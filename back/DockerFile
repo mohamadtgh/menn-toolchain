@@ -1,0 +1,16 @@
+FROM node:lts-alpine as base
+
+WORKDIR /var/www/app
+
+COPY package*.json ./
+COPY .npmrc .npmrc
+
+RUN npm ci
+
+COPY . .
+
+
+FROM base as production
+
+ENV NODE_PATH=./dist
+RUN npm run build
